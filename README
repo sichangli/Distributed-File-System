@@ -1,0 +1,83 @@
+Overview:
+My solution includes the following files:
+tcp_server.cpp
+tcp_client.cpp
+CachedFile.h
+CachedFile.cpp
+Cach.h
+Cache.cpp
+
+The basic logic of the server and client side are in the files tcp_server.cpp and tcp_client. The CachedFile and Cache are the encapsulation of the cached file and cache. 
+
+First the client will send the file name to server. The server will check whether the file exists in the directory. If not, it will send a char ‘n’ back to client and both server and client will close the socket. Otherwise it will send ‘y’ and then read the file into a buffer and send it to the client. The client will receive the buffer and write it into a file. 
+
+The CachedFile is the encapsulation of char* representing the file data. It also contains the size of the file and the time it was last accessed by the client.
+
+The Cache is the encapsulation of the stl map representing the cache. It also keeps track of the total size of the cache and contains some member functions to run the LRU policy.
+
+Cache policy:
+I used LRU algorithm as the policy. The server will keep track of the last accessed time of each file. When the size of cache becomes larger than 64MB. It will remove the file with earliest accessed time from the cache. If the cache size is still larger than 64MB, the server will continue removing files with earliest accessed time until the cache size is limited to 64MB.
+
+Test cases:
+1. Request a file which doesn’t exist on server and the following is the output:
+======================================================
+Client 128.59.15.39 is requesting file aaa
+File aaa does not exist
+Cache size: 0
+======================================================
+
+2. Used a file larger than 64MB. The file will be saved on client, but will not be cached on server. The following is the output of this test case. We can see that the cache size is still 0 after the file is sent.
+======================================================
+Client 128.59.15.39 is requesting file verybig
+Cache miss. File verybig sent to the client
+Cache size: 0
+======================================================
+
+3. Used a file less than 64MB and let the client request the file twice. The following is the output:
+======================================================
+Client 128.59.15.39 is requesting file a
+Cache miss. File a sent to the client
+File a is added to cache
+Cache size: 12000000
+======================================================
+Client 128.59.15.39 is requesting file a
+Cache hit. File a sent to the client
+Cache size: 12000000
+======================================================
+
+4. Created 6 files with size 12MB and let the client request all of them one by one. They are all saved on client. The server will totally cache 5 files. When the client requests the 6th file, the server will remove the file with smallest timestamp. The following is the output:
+======================================================
+Client 128.59.15.39 is requesting file a
+Cache miss. File a sent to the client
+File a is added to cache
+Cache size: 12000000
+======================================================
+Client 128.59.15.39 is requesting file b
+Cache miss. File b sent to the client
+File b is added to cache
+Cache size: 24000000
+======================================================
+Client 128.59.15.39 is requesting file c
+Cache miss. File c sent to the client
+File c is added to cache
+Cache size: 36000000
+======================================================
+Client 128.59.15.39 is requesting file d
+Cache miss. File d sent to the client
+File d is added to cache
+Cache size: 48000000
+======================================================
+Client 128.59.15.39 is requesting file e
+Cache miss. File e sent to the client
+File e is added to cache
+Cache size: 60000000
+======================================================
+Client 128.59.15.39 is requesting file f
+Cache miss. File f sent to the client
+File a is removed from cache
+File f is added to cache
+Cache size: 60000000
+======================================================
+
+5. Request a binary file. The file will be sent to the client completely and won’t lose any data.
+
