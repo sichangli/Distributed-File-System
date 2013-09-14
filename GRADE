@@ -1,0 +1,4 @@
+PASS
+
+WARNING:
+There empty spaces in your homework in all the source files. If that happens for Homework 1. 1/4 of the entire score will be deducted. Use a tool like astyle/checkpatch to help yourself overcome this problem
