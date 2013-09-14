@@ -3,10 +3,19 @@ TCP requires two hosts to make a connection first and subsequent data are sent t
 UDP is much simpler since it doesn’t require connection in advance and doesn’t guarantee anything. Its job is done once it sends out the data. So it’s faster than TCP, but TCP is more reliable.
 If we want to build an application which requires high reliability but not fast response time, like web server, we can use TCP as the underlying lever. But if we require fast response time and can tolerate data lost, like instant video and online game, UDP is a good choice.
 
+✓ CORRECT
+
+
 2.
 When we request a file from the server, first we download the file from server, then we put it in the cache memory. So next time we request the same file, we can get it from the cache and this is called caching.  The size of the cache is limited, so if the cache is full, we will need make replacements.
 As for replication, we make copies of all the data in the server and put them on other servers. When a file is updated on one of the server, the other servers also need to update. 
 Usually a cache is used to speed up the request. It only caches data we have accessed. With good replacement policy, it can save a lot of request time. A replication is used as backup for data. It stores copies of the entire data, even we won’t access. So when one of the data server is down, the other can still be up and serve. It will slow down the request since every change to the data has to be updated on different servers.
 
+G: Note quite right:
+1. Cache could be pre-populated, including negative cache. 
+2. Replication could used for speeding up as well, e.g. MySQL Cluster.
+
 3.
 The hardware or os-level cache is very generic since the data in it will have all kinds of format, it’s not easy to fetch data from it for the application-level. Using application-level cache, we can put it closer to the application server, then we can have even faster access. Also, since it’s only for application level, we can custom it depending on our application level and it will make it easier to access the cache.
+
+✓ CORRECT
