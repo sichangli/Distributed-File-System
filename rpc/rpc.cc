@@ -613,6 +613,16 @@ rpcs::add_reply(unsigned int clt_nonce, unsigned int xid,
 		char *b, int sz)
 {
 	ScopedLock rwl(&reply_window_m_);
+
+	std::list<reply_t>::iterator iter;
+	for (iter = reply_window_[clt_nonce].begin(); iter != reply_window_[clt_nonce].end(); iter++) {
+		if (iter->xid == xid) {
+			iter->buf = b;
+			iter->sz = sz;
+			iter->cb_present = true;
+
+		}
+	}
 }
 
 void
@@ -629,6 +639,7 @@ rpcs::free_reply_window(void)
 		clt->second.clear();
 	}
 	reply_window_.clear();
+	xid_reps.clear();
 }
 
 rpcs::rpcstate_t 
@@ -637,7 +648,48 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 {
 	ScopedLock rwl(&reply_window_m_);
 
-	return NEW;
+	rpcstate_t state = NEW;
+
+	std::list<reply_t>::iterator iter = reply_window_[clt_nonce].begin();
+
+	// update the xid_rep on server side
+	if (xid_reps.find(clt_nonce) == xid_reps.end() || xid_reps[clt_nonce] < xid_rep)
+		xid_reps[clt_nonce] = xid_rep;
+
+	// erase very old reply and check whether a request is done or in progress
+	while (iter != reply_window_[clt_nonce].end()) {
+		// if reply is already received in client, don't keep the reply anymore
+		if (iter->xid <= xid_reps[clt_nonce]) {
+			free(iter->buf);
+			iter = reply_window_[clt_nonce].erase(iter);
+			continue;
+		} else if (iter->xid == xid) { // if xid is in reply window list
+			// if request xid is in progress
+			if (!iter->cb_present)
+				state = INPROGRESS;
+			// if request xid is done
+			else {
+				*b = iter->buf;
+				*sz = iter->sz;
+				state = DONE;
+			}
+		}
+		iter++;
+	}
+
+	// cannot find xid in the reply window list, the request can be new or forgottern request
+	if (state == NEW) {
+		// if request xid is forgotten
+		if (xid <= xid_reps[clt_nonce])
+			state = FORGOTTEN;
+		// the request is new
+		else {
+			reply_t new_reply(xid);
+			reply_window_[clt_nonce].push_back(new_reply);
+		}
+	}
+
+	return state;
 }
 
 //rpc handler

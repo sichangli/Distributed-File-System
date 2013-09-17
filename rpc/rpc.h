@@ -5,6 +5,7 @@
 #include <netinet/in.h>
 #include <list>
 #include <map>
+#include <set>
 
 #include "thr_pool.h"
 #include "marshall.h"
@@ -277,6 +278,8 @@ class rpcs : public chanmgr {
 	// provide at most once semantics by maintaining a window of replies
 	// per client that that client hasn't acknowledged receiving yet.
 	std::map<unsigned int, std::list<reply_t> > reply_window_;
+	// keep track of the updated xid received by the client on server side
+	std::map<unsigned int, unsigned int> xid_reps;
 
 	void free_reply_window(void);
 	void add_reply(unsigned int clt_nonce, unsigned int xid, char *b, int sz);

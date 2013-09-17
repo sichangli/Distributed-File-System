@@ -7,6 +7,7 @@
 #include <sstream>
 #include <iostream>
 #include <stdio.h>
+#include <pthread.h>
 
 lock_client::lock_client(std::string dst)
 {
@@ -30,10 +31,21 @@ lock_client::stat(lock_protocol::lockid_t lid)
 lock_protocol::status
 lock_client::acquire(lock_protocol::lockid_t lid)
 {
+  int r;
+  int ret = cl->call(lock_protocol::acquire, cl->id(), lid, r);
+  assert (ret == lock_protocol::OK);
+  return ret;
 }
 
 lock_protocol::status
 lock_client::release(lock_protocol::lockid_t lid)
 {
+  int r;
+  int ret = cl->call(lock_protocol::release, cl->id(), lid, r);
+  // if the client doesn't own the lock
+  if (ret != lock_protocol::OK)
+    pthread_exit(NULL);
+  assert (ret == lock_protocol::OK);
+  return ret;
 }
 

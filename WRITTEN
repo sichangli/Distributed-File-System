@@ -1,0 +1,74 @@
+1.
+For the same request, server might get the same request multiple times, 
+but only need to process the request only once. So at-most-once delivery 
+ensures that server only process the request no more than once.
+To ensure at-most-once delivery, the client will need to specify each
+request with a sequence number and keep track of sequence numbers for
+requests which have received replys. Each time the client sends a request,
+it also sends the sequence number for the request and sequence number for
+indicating the requests which have received replys. The server will need
+to keep track of a window of sequence numbers of recieved requests and 
+corresponding precessed reply data. If the server receives a request, it
+will first find it in the window, if it does not exist, it will process
+the request and store the new sequence number and reply data. If it 
+already exists, the server will just send the stored reply data back to
+server but not process it. In this way, we can implement the at-most-once 
+delivery.
+
+2.
+Stubs in RPC are interfaces between the client and server. Usually they
+are written in interface definition language and should be compiled and
+installed on both the server and client sides. When client calls the API
+provided by the stubs, the client stub will do the marshalling and then
+call RPC library to send to request. When the server receives the request,
+the server stub will do the unmarshalling leave the process work to the
+RPC library. So stubs are used for data marshalling and unmarshalling.
+
+3.
+Server and client are on different hosts so they might have different 
+address spaces. the data pointing by the pointer in the client might be 
+different from the data pointing by the pointer in the server. So pointers
+are not used as parameters. If the server and the client have shared 
+address space or data, then the pointer will have same meaning to both 
+server and client. So references to the shared data can be passed via RPC.
+But we still need to be careful, since the shared data can be mapped 
+differently in server and client, we might also need to pass an offset 
+from the base address to let server and client reference the same data.
+
+4.
+(a)
+True.
+Each RPC call will call the function call1 which will go in a while loop
+until it receives the reply from server.
+
+(b)
+False.
+Multiple threads can call function in the same client object 
+simultaneously.
+
+(c)
+False.
+The server will dispatch each request to different thread to process. So
+the server might not process the request in order.
+
+(d)
+False.
+The server will keep a thread pool. When it receives request, it will
+dispatch the request to a idle thread in the thread pool. 
+
+(e)
+False.
+It uses TCP as the underlying protocol. We can see from the rpcs
+constructor which creates a tcp connection.
+
+5.
+In a local programming environment, we don't need to worry about the
+network failure. But in distributed environment, we have to make sure that
+both server and client can receive the message successfully even there is
+a network failure.
+The server in distributed environment can be down for some reason, so we
+need to make sure to reconnect to server when it's back to serve.
+The time synchronization is also very important in distributed environment
+. Different hosts in distributed system might need synchronized clocks to
+coordinate different processes. So we need to make sure that clocks in
+distributed system are always synchronized.

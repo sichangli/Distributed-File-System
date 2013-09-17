@@ -1,0 +1,363 @@
+1. server and client
+The server uses 2 maps nacquire_map and lock_map to keep track of the
+lock status for each lock id. It also uses mutex and condition variable
+to protect those two maps.
+In the function acquire, it will first lock the mutex and check whether
+the lock id exists in the map. If not, it will grant it and return OK.
+If yes, it checks whether the lock is locked. If not, it will grant it,
+update the lock state and client owns it and return OK. If yes, 
+it will go into a while loop to wait on a condition variable untile the
+lock is free. It will not return until it grants the lock. 
+In function release, it will first lock the mutex. If the lock doesn't
+exist or the client doesn't hold the lock, it will return an error code.
+Otherwise, it will set the lock state to free and signal other threads
+waiting on the condition. Then it will return OK.
+The function stat is also updated to return the nacquire of the lock
+correctly,
+
+The functions acquire and release on the client side will call the call
+function of the client object with corresponding procedure id.
+
+2. rpc
+Besieds the reply_window_ map, I also added xid_reps map to keep track
+of the updated xid_reps from the client side.
+Everytime a request is received, the function checkduplicate_and_update
+will be called. First it will check whether the xid_rep for the client on
+the server side is updated, if it's less than the xid_rep arguments passed
+by the client, it will get updated.
+For each reply in the reply_window_, if the xid of the reply is less than
+the updated xid_rep on server, it means the reply is already received by
+the server, so we can delete it from the reply_window_.
+If the xid we are looking for exists in the reply_window_, we check whether
+the cb_present of the reply is true. If not, the request is still in progress.
+If yes, the request is done, we can send the stored data back to client.
+If the xid is not in reply_window_, the request can be new or forgotten.
+If the xid is less or equal to the xid_rep in server, we know we already deleted
+the reply for that xid, so it's forgotten. Otherwise, it's a new request, we
+create a new reply with cb_present set to false.
+For the new request, the RPC function will be called and the result buffer will
+be returned. In funtion add_reply, we update the buffer of reply in reply_window_
+and set cb_present to true.
+
+-------------------------------------------------------------------------
+Test cases:
+Passed lock_tester and rpctest successfully.
+-------------------------------------------------------------------------
+The following is the output of rpctest with RPC_LOSSY=0
+=========================================================================
+starting server on port 27447 RPC_HEADER_SZ 24
+simple_tests
+   -- string concat RPC .. ok
+   -- small request, big reply .. ok
+   -- too few arguments .. failed ok
+   -- too many arguments .. failed ok
+   -- wrong ret value size .. failed ok
+   -- no suprious timeout .. ok
+   -- no suprious timeout .. ok
+   -- huge 1M rpc request .. ok
+   -- rpc timeout .. ok
+simple_tests OK
+start concurrent_test (10 threads) ... OK
+start lossy_test ..... OK
+failure_test
+   -- create new client and try to bind to failed server .. failed ok
+   -- call recovered server with old client .. failed ok
+   -- delete existing rpc client, create replacement rpc client .. ok
+   -- concurrent test on new rpc client w/ 10 threads ..ok
+   -- delete existing rpc client and server, create replacements.. ok
+   -- concurrent test on new client and server w/ 10 threads ..ok
+failure_test OK
+rpctest OK
+-------------------------------------------------------------------------
+The following is the output of lock_tester with RPC_LOSSY=5
+=========================================================================
+simple lock client
+acquire a release a acquire a release a
+acquire a acquire b release b release a
+test2: client 0 acquire a release a
+test2: client 1 acquire a release a
+test2: client 2 acquire a release a
+test2: client 3 acquire a release a
+test2: client 4 acquire a release a
+test2: client 5 acquire a release a
+test2: client 6 acquire a release a
+test2: client 7 acquire a release a
+test2: client 8 acquire a release a
+test2: client 9 acquire a release a
+test2: client 1 acquire done
+test2: client 1 release
+test2: client 1 release done
+test2: client 2 acquire done
+test2: client 2 release
+test2: client 2 release done
+test2: client 3 acquire done
+test2: client 3 release
+test2: client 3 release done
+test2: client 4 acquire done
+test2: client 4 release
+test2: client 4 release done
+test2: client 5 acquire done
+test2: client 5 release
+test2: client 5 release done
+test2: client 0 acquire done
+test2: client 0 release
+test2: client 6 acquire done
+test2: client 0 release done
+test2: client 6 release
+test2: client 6 release done
+test2: client 7 acquire done
+test2: client 7 release
+test2: client 7 release done
+test2: client 8 acquire done
+test2: client 8 release
+test2: client 9 acquire done
+test2: client 8 release done
+test2: client 9 release
+test2: client 9 release done
+test 3
+test3: client 0 acquire a release a concurrent
+test3: client 1 acquire a release a concurrent
+test3: client 2 acquire a release a concurrent
+test3: client 3 acquire a release a concurrent
+test3: client 4 acquire a release a concurrent
+test3: client 5 acquire a release a concurrent
+test3: client 6 acquire a release a concurrent
+test3: client 7 acquire a release a concurrent
+test3: client 8 acquire a release a concurrent
+test3: client 9 acquire a release a concurrent
+test3: client 1 got lock
+test3: client 2 got lock
+test3: client 3 got lock
+test3: client 0 got lock
+test3: client 4 got lock
+test3: client 6 got lock
+test3: client 5 got lock
+test3: client 7 got lock
+test3: client 5 got lock
+test3: client 9 got lock
+test3: client 5 got lock
+test3: client 2 got lock
+test3: client 3 got lock
+test3: client 0 got lock
+test3: client 4 got lock
+test3: client 6 got lock
+test3: client 8 got lock
+test3: client 7 got lock
+test3: client 1 got lock
+test3: client 9 got lock
+test3: client 5 got lock
+test3: client 2 got lock
+test3: client 3 got lock
+test3: client 0 got lock
+test3: client 4 got lock
+test3: client 6 got lock
+test3: client 8 got lock
+test3: client 1 got lock
+test3: client 9 got lock
+test3: client 5 got lock
+test3: client 2 got lock
+test3: client 5 got lock
+test3: client 4 got lock
+test3: client 6 got lock
+test3: client 8 got lock
+test3: client 1 got lock
+test3: client 9 got lock
+test3: client 0 got lock
+test3: client 2 got lock
+test3: client 0 got lock
+test3: client 4 got lock
+test3: client 6 got lock
+test3: client 8 got lock
+test3: client 1 got lock
+test3: client 9 got lock
+test3: client 5 got lock
+test3: client 2 got lock
+test3: client 0 got lock
+test3: client 4 got lock
+test3: client 6 got lock
+test3: client 8 got lock
+test3: client 1 got lock
+test3: client 9 got lock
+test3: client 5 got lock
+test3: client 2 got lock
+test3: client 0 got lock
+test3: client 4 got lock
+test3: client 6 got lock
+test3: client 8 got lock
+test3: client 1 got lock
+test3: client 9 got lock
+test3: client 5 got lock
+test3: client 7 got lock
+test3: client 3 got lock
+test3: client 0 got lock
+test3: client 4 got lock
+test3: client 2 got lock
+test3: client 6 got lock
+test3: client 8 got lock
+test3: client 1 got lock
+test3: client 9 got lock
+test3: client 5 got lock
+test3: client 7 got lock
+test3: client 3 got lock
+test3: client 0 got lock
+test3: client 4 got lock
+test3: client 2 got lock
+test3: client 6 got lock
+test3: client 8 got lock
+test3: client 1 got lock
+test3: client 9 got lock
+test3: client 7 got lock
+test3: client 3 got lock
+test3: client 0 got lock
+test3: client 3 got lock
+test3: client 2 got lock
+test3: client 6 got lock
+test3: client 1 got lock
+test3: client 9 got lock
+test3: client 7 got lock
+test3: client 4 got lock
+test3: client 3 got lock
+test3: client 8 got lock
+test3: client 3 got lock
+test3: client 8 got lock
+test3: client 3 got lock
+test3: client 7 got lock
+test3: client 7 got lock
+test3: client 7 got lock
+test3: client 7 got lock
+test 4
+test4: thread 0 acquire a release a concurrent; same clnt
+test4: thread 1 acquire a release a concurrent; same clnt
+test4: thread 0 on client 0 got lock
+test4: thread 1 on client 0 got lock
+test4: thread 0 on client 0 got lock
+test4: thread 1 on client 0 got lock
+test4: thread 0 on client 0 got lock
+test4: thread 1 on client 0 got lock
+test4: thread 0 on client 0 got lock
+test4: thread 1 on client 0 got lock
+test4: thread 0 on client 0 got lock
+test4: thread 1 on client 0 got lock
+test4: thread 0 on client 0 got lock
+test4: thread 1 on client 0 got lock
+test4: thread 0 on client 0 got lock
+test4: thread 1 on client 0 got lock
+test4: thread 0 on client 0 got lock
+test4: thread 1 on client 0 got lock
+test4: thread 0 on client 0 got lock
+test4: thread 1 on client 0 got lock
+test4: thread 0 on client 0 got lock
+test4: thread 1 on client 0 got lock
+test 5
+test5: client 0 acquire a release a concurrent; same and diff clnt
+test5: client 1 acquire a release a concurrent; same and diff clnt
+test5: client 2 acquire a release a concurrent; same and diff clnt
+test5: client 3 acquire a release a concurrent; same and diff clnt
+test5: client 4 acquire a release a concurrent; same and diff clnt
+test5: client 5 acquire a release a concurrent; same and diff clnt
+test5: client 6 acquire a release a concurrent; same and diff clnt
+test5: client 7 acquire a release a concurrent; same and diff clnt
+test5: client 8 acquire a release a concurrent; same and diff clnt
+test5: client 9 acquire a release a concurrent; same and diff clnt
+test5: client 0 got lock
+test5: client 5 got lock
+test5: client 1 got lock
+test5: client 5 got lock
+test5: client 2 got lock
+test5: client 7 got lock
+test5: client 3 got lock
+test5: client 9 got lock
+test5: client 3 got lock
+test5: client 9 got lock
+test5: client 0 got lock
+test5: client 6 got lock
+test5: client 1 got lock
+test5: client 6 got lock
+test5: client 2 got lock
+test5: client 7 got lock
+test5: client 4 got lock
+test5: client 8 got lock
+test5: client 3 got lock
+test5: client 9 got lock
+test5: client 3 got lock
+test5: client 5 got lock
+test5: client 1 got lock
+test5: client 5 got lock
+test5: client 2 got lock
+test5: client 7 got lock
+test5: client 4 got lock
+test5: client 8 got lock
+test5: client 0 got lock
+test5: client 9 got lock
+test5: client 3 got lock
+test5: client 6 got lock
+test5: client 5 got lock
+test5: client 2 got lock
+test5: client 5 got lock
+test5: client 1 got lock
+test5: client 4 got lock
+test5: client 8 got lock
+test5: client 0 got lock
+test5: client 9 got lock
+test5: client 3 got lock
+test5: client 6 got lock
+test5: client 7 got lock
+test5: client 2 got lock
+test5: client 5 got lock
+test5: client 1 got lock
+test5: client 4 got lock
+test5: client 8 got lock
+test5: client 6 got lock
+test5: client 9 got lock
+test5: client 3 got lock
+test5: client 7 got lock
+test5: client 2 got lock
+test5: client 5 got lock
+test5: client 1 got lock
+test5: client 4 got lock
+test5: client 0 got lock
+test5: client 8 got lock
+test5: client 6 got lock
+test5: client 9 got lock
+test5: client 3 got lock
+test5: client 7 got lock
+test5: client 2 got lock
+test5: client 5 got lock
+test5: client 1 got lock
+test5: client 4 got lock
+test5: client 0 got lock
+test5: client 4 got lock
+test5: client 6 got lock
+test5: client 4 got lock
+test5: client 3 got lock
+test5: client 7 got lock
+test5: client 2 got lock
+test5: client 5 got lock
+test5: client 1 got lock
+test5: client 8 got lock
+test5: client 0 got lock
+test5: client 9 got lock
+test5: client 6 got lock
+test5: client 4 got lock
+test5: client 6 got lock
+test5: client 7 got lock
+test5: client 2 got lock
+test5: client 1 got lock
+test5: client 8 got lock
+test5: client 0 got lock
+test5: client 9 got lock
+test5: client 3 got lock
+test5: client 4 got lock
+test5: client 6 got lock
+test5: client 7 got lock
+test5: client 2 got lock
+test5: client 1 got lock
+test5: client 8 got lock
+test5: client 0 got lock
+test5: client 9 got lock
+test5: client 7 got lock
+test5: client 0 got lock
+test5: client 8 got lock
+test5: client 8 got lock
+./lock_tester: passed all tests successfully
+
