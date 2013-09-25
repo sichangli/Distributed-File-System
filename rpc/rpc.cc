@@ -642,7 +642,7 @@ rpcs::free_reply_window(void)
 	xid_reps.clear();
 }
 
-rpcs::rpcstate_t 
+rpcs::rpcstate_t
 rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 		unsigned int xid_rep, char **b, int *sz)
 {

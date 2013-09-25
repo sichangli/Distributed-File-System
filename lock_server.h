@@ -21,8 +21,7 @@ class lock_server {
   enum lock_state { FREE, LOCKED };
 
   // keep track of lock state and the clt owns it
-  struct lock_info
-  {
+  struct lock_info {
     lock_info(unsigned int, lock_state);
 
     unsigned int clt;
@@ -43,7 +42,7 @@ class lock_server {
   lock_protocol::status release(unsigned int clt, lock_protocol::lockid_t lid, int &);
 };
 
-#endif 
+#endif
 
 
 
