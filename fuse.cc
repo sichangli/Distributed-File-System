@@ -61,7 +61,6 @@ getattr(yfs_client::inum inum, struct stat &st)
    return yfs_client::OK;
 }
 
-
 void
 fuseserver_getattr(fuse_req_t req, fuse_ino_t ino,
           struct fuse_file_info *fi)
@@ -78,19 +77,38 @@ fuseserver_getattr(fuse_req_t req, fuse_ino_t ino,
     fuse_reply_attr(req, &st, 0);
 }
 
+// set file size for fuseserver_setattr
+yfs_client::status
+setFileSize(fuse_ino_t ino, struct stat &st, struct stat *attr)
+{
+  printf("setFileSize %lu %d\n", ino, yfs->isfile(ino));
+  // check whether the inum is a file
+  if(yfs->isfile(ino)) {
+    yfs_client::status ret = yfs->setFileSize(ino, attr->st_size);
+    if (ret != yfs_client::OK)
+      return ret;
+
+    bzero(&st, sizeof(st));
+    ret = getattr(ino, st);
+    return ret;
+  } else {  // if not a file, return error
+    return yfs_client::NOENT;
+  }
+}
+
 void
 fuseserver_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr, int to_set, struct fuse_file_info *fi)
 {
   printf("fuseserver_setattr 0x%x\n", to_set);
   if (FUSE_SET_ATTR_SIZE & to_set) {
-    printf("   fuseserver_setattr set size to %llu\n", attr->st_size);
+    printf("   fuseserver_setattr set size to %lu\n", attr->st_size);
     struct stat st;
     // You fill this in
-#if 0
-    fuse_reply_attr(req, &st, 0);
-#else
-    fuse_reply_err(req, ENOSYS);
-#endif
+    yfs_client::status ret = setFileSize(ino, st, attr);
+    if (ret == yfs_client::OK)
+      fuse_reply_attr(req, &st, 0);
+    else
+      fuse_reply_err(req, ENOSYS);
   } else {
     fuse_reply_err(req, ENOSYS);
   }
@@ -101,11 +119,22 @@ fuseserver_read(fuse_req_t req, fuse_ino_t ino, size_t size,
       off_t off, struct fuse_file_info *fi)
 {
   // You fill this in
-#if 0
-  fuse_reply_buf(req, buf, size);
-#else
-  fuse_reply_err(req, ENOSYS);
-#endif
+  printf("fuseserver_read %lu %d\n", ino, yfs->isfile(ino));
+
+  // if it's not a file
+  if (!yfs->isfile(ino)) {
+    fuse_reply_err(req, ENOSYS);
+    return;
+  }
+
+  std::string buf;
+  if (yfs->read(ino, size, off, buf) != yfs_client::OK) {
+    fuse_reply_err(req, ENOSYS);
+    return;
+  }
+
+  printf("fuseserver_read %lu -> %lu bytes\n", ino, size);
+  fuse_reply_buf(req, buf.data(), size);
 }
 
 void
@@ -114,11 +143,22 @@ fuseserver_write(fuse_req_t req, fuse_ino_t ino,
   struct fuse_file_info *fi)
 {
   // You fill this in
-#if 0
-  fuse_reply_write(req, bytes_written);
-#else
-  fuse_reply_err(req, ENOSYS);
-#endif
+  printf("fuseserver_write %lu %d\n", ino, yfs->isfile(ino));
+
+  // if it's not a file
+  if (!yfs->isfile(ino)) {
+    fuse_reply_err(req, ENOSYS);
+    return;
+  }
+
+  std::string buf_str(buf, size);
+  if (yfs->write(ino, buf_str, size, off) != yfs_client::OK) {
+    fuse_reply_err(req, ENOSYS);
+    return;
+  }
+
+  printf("fuseserver_write %lu -> %lu bytes\n", ino, size);
+  fuse_reply_write(req, size);
 }
 
 yfs_client::status
@@ -128,7 +168,27 @@ fuseserver_createhelper(fuse_ino_t parent, const char *name,
 	e->attr_timeout = 0.0;
   e->entry_timeout = 0.0;
   // You fill this in
-  return yfs_client::NOENT;
+  yfs_client::status ret = yfs_client::OK;
+  yfs_client::inum inum;
+  struct stat attr;
+
+  // if parent is not dir
+  if(!yfs->isdir(parent))
+    return yfs_client::NOENT;
+
+  ret = yfs->create(parent, name, inum);
+  if (ret != yfs_client::OK)
+    return ret;
+
+  // get attr for inum
+  ret = getattr(inum, attr);
+  if (ret != yfs_client::OK)
+    return ret;
+  // fill fuse_entry_param
+  e->ino = inum;
+  e->attr = attr;
+
+  return ret;
 }
 
 void
@@ -176,10 +236,26 @@ fuseserver_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
   // Look up the file named `name' in the directory referred to by
   // `parent' in YFS. If the file was found, initialize e.ino and
   // e.attr appropriately.
+  yfs_client::inum inum;
+  struct stat attr;
 
-  if (found)
+  // if parent is not dir
+  if(!yfs->isdir(parent)){
+    fuse_reply_err(req, ENOENT);
+    return;
+  }
+
+  if (yfs->lookup(parent, name, inum, found) != yfs_client::OK) {
+    fuse_reply_err(req, ENOENT);
+    return;
+  }
+
+  if (found) {
+    getattr(inum, attr);
+    e.ino = inum;
+    e.attr = attr;
     fuse_reply_entry(req, &e);
-  else
+  } else
     fuse_reply_err(req, ENOENT);
 }
 
@@ -230,7 +306,16 @@ fuseserver_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 
 
   // fill in the b data structure using dirbuf_add
+  std::map<std::string, yfs_client::inum> dir;
+  std::map<std::string, yfs_client::inum>::iterator iter;
 
+  if (yfs->readdir(inum, dir) != yfs_client::OK) {
+    fuse_reply_err(req, ENOENT);
+    return;
+  }
+
+  for (iter = dir.begin(); iter != dir.end(); iter++)
+    dirbuf_add(&b, iter->first.c_str(), iter->second);
 
   reply_buf_limited(req, b.p, b.size, off, size);
   free(b.p);
@@ -242,11 +327,15 @@ fuseserver_open(fuse_req_t req, fuse_ino_t ino,
      struct fuse_file_info *fi)
 {
   // You fill this in
-#if 0
+  printf("fuseserver_open %lu %d\n", ino, yfs->isfile(ino));
+
+  // if not a file
+  if (!yfs->isfile(ino)) {
+    fuse_reply_err(req, ENOSYS);
+    return;
+  }
+
   fuse_reply_open(req, fi);
-#else
-  fuse_reply_err(req, ENOSYS);
-#endif
 }
 
 void

@@ -1,0 +1,115 @@
+1.
+lock server request message:
+
+message LockRequest {
+	
+	enum Operation {
+		ACQUIRE = 0;
+		RELEASE = 1;
+	}
+
+	required unsigned long long lockid = 1;
+	required Operation op = 2;
+}
+
+
+lock server response message:
+
+message LockResponse {
+
+	enum Status {
+		SUCCESS = 0;
+		ERROR = 1;
+	}
+	
+	required Status = 1;
+}
+
+extent server request message:
+
+message ExtentRequest {
+
+	enum Operation {
+		CREATE = 0;
+		READ = 1;
+		WRITE = 2;
+		SETATTR = 3;
+		GETATTR = 4;
+		LOOKUP = 5;
+		READDIR = 6;
+		OPEN = 7;
+		MKDIR = 8;
+	}
+
+	required Operation op = 1;
+	optional unsigned long long ino = 2;
+	optional unsigned long long parent_ino = 3;
+	optional string filename = 4;
+	optional string data = 5;
+	optional stat attr = 6;
+}
+
+extent server response message:
+
+message ExtentResponse {
+
+	enum Status {
+		SUCCESS = 0;
+		ERROR = 1;
+	}
+
+	required Status = 1;
+	optional string data = 2
+	optional stat attr = 3;
+	optional unsigned long long ino = 4;
+}
+
+2.
+The function do_pingpong first acquires the mutex lock ml. Then it calls rpc call
+ping_handler and ping_handler calls rpc call pong_handler. The pong_handler tries
+to acquire the same mutex lock. But since do_pingpong already holds the lock, it 
+will block. So the rpc call in do_pingpong will not return and it will hang 
+indefinitely.
+We can fix it simply removing ScopedLock ml(&m); in function pong_handler() since
+it's already holding the mutext lock.
+The following is the updated code to fix the problem.
+
+class PingPong {
+  public:
+    PingPong(int port, string dst) {
+        pthread_mutex_init(&m, NULL);
+        pings_sent = pongs_received = 0;
+        srv = new rpcs(port);
+        srv->reg(ben_protocol::ping, this, &PingPong::ping_handler);
+        srv->reg(ben_protocol::pong, this, &PingPong::pong_handler);
+        cl = new rpcc(dst);
+        cl->bind();
+    }
+    void do_pingpong() {
+        ScopedLock ml(&m);
+        int r;
+        cl->call(ben_protocol::ping, "ping", r);
+        cl->call(ben protocol::pong, "pong", r);
+        printf("one round of ping-pong\n");
+    }
+    void ping_handler() {
+        int r;
+        cl->call(ben_protocol::pong, "pong", r);
+    }
+    void pong_handler() {
+        pongs_received++;
+    }
+  private:
+    rpcc *cl;
+    rpcs *srv;
+    pthread_mutex_lock m;
+    int pings_sent;
+    int pongs_received;
+};
+
+void main(int argc, char* argv[]) {
+    PingPong s(atoi(argv[1]), string(argv[2]));
+    while (1) {
+        s.do_pingpong();
+    }
+}
