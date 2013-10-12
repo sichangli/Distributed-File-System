@@ -343,13 +343,37 @@ fuseserver_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
      mode_t mode)
 {
   struct fuse_entry_param e;
+  std::string name_str(name);
+  yfs_client::inum inum;
+  struct stat attr;
+  yfs_client::status ret;
 
-  // You fill this in
-#if 0
-  fuse_reply_entry(req, &e);
-#else
-  fuse_reply_err(req, ENOSYS);
-#endif
+  printf("fuseserver_mkdir %s in %lu\n", name, parent);
+
+  if (!yfs->isdir(parent)) {
+    fuse_reply_err(req, ENOENT);
+    return;
+  }
+
+  ret = yfs->mkdir(parent, name_str, inum);
+  if (ret != yfs_client::OK) {
+    if (ret == yfs_client::EXIST) {
+      fuse_reply_err(req, EEXIST);
+    } else {
+      fuse_reply_err(req, ENOENT);
+    }
+    return;
+  }
+
+  // get attr for inum
+  if (getattr(inum, attr) != yfs_client::OK) {
+    fuse_reply_err(req, ENOENT);
+    return;
+  }
+  // fill e
+  e.ino = inum;
+  e.attr = attr;
+  fuse_reply_entry(req, &e);  
 }
 
 void
@@ -359,7 +383,22 @@ fuseserver_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
   // You fill this in
   // Success:	fuse_reply_err(req, 0);
   // Not found:	fuse_reply_err(req, ENOENT);
-  fuse_reply_err(req, ENOSYS);
+
+  printf("fuseserver_unlink file %s in %lu\n", name, parent);
+
+  // if parent is not dir
+  if(!yfs->isdir(parent)){
+    fuse_reply_err(req, ENOENT);
+    return;
+  }
+
+  std::string name_str(name);
+  if (yfs->remove(parent, name_str) != yfs_client::OK) {
+    fuse_reply_err(req, ENOENT);
+    return;
+  }
+
+  fuse_reply_err(req, 0);
 }
 
 void

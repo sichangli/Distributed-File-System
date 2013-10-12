@@ -37,10 +37,16 @@ Otherwise, return subset of the data.
 write:
 It reads the data of file, it the offset past the end of file, it will create
 hole. Pad the hole with '\0'. Otherwise, replace the data accordingly.
+remove:
+It removes the the data file and attr file and also updates the parent dir.
+mkdir:
+Similar to funtion create.
 
 -------------------------------------------------------------------------
 Test cases:
 Passed test-homework-3-a.pl and test-homework-3-b.pl successfully.
+Passed test-homework-3-c.pl, test-homework-3-d.c and test-homework-3-e.c 
+successfully.
 -------------------------------------------------------------------------
 The following is the output of test-homework-3-a.pl
 -------------------------------------------------------------------------
@@ -340,3 +346,157 @@ Check directory listing: OK
 Read files via second server: OK
 Check directory listing on second server: OK
 Passed all tests
+-------------------------------------------------------------------------
+The following is the output of test-homework-3-c.pl
+-------------------------------------------------------------------------
+mkdir ./yfs1/d1968
+create x-0
+delete x-0
+create x-1
+checkmtime x-1
+checkdirmtime
+delete x-1
+create x-2
+create x-3
+create x-4
+create x-5
+create x-6
+create x-7
+create x-8
+create x-9
+create x-10
+create x-11
+deadcheck x-1
+livecheck x-9
+delete x-5
+deadcheck x-1
+create x-12
+delete x-8
+livecheck x-4
+checkdirmtime
+delete x-4
+delete x-9
+create x-13
+delete x-2
+livecheck x-10
+create x-14
+delete x-14
+livecheck x-7
+deadcheck x-5
+livecheck x-12
+create x-15
+deadcheck x-4
+livecheck x-10
+create x-16
+delete x-6
+create x-17
+delete x-17
+delete x-16
+deadcheck x-8
+create x-18
+delete x-15
+checkmtime x-18
+create x-19
+delete x-11
+create x-20
+deadcheck x-5
+delete x-7
+checkdirmtime
+delete x-10
+checkmtime x-3
+create x-21
+delete x-19
+create x-22
+delete x-22
+checkdirmtime
+create x-23
+delete x-12
+create x-24
+livecheck x-20
+checkdirmtime
+delete x-13
+create x-25
+deadcheck x-22
+create x-26
+create x-27
+delete x-21
+deadcheck x-8
+livecheck x-25
+create x-28
+delete x-23
+deadcheck x-5
+checkmtime x-18
+create x-29
+dircheck
+create x-30
+delete x-30
+delete x-28
+create x-31
+create x-32
+delete x-3
+livecheck x-25
+checkmtime x-26
+delete x-26
+deadcheck x-10
+create x-33
+delete x-29
+livecheck x-33
+create x-34
+delete x-25
+create x-35
+delete x-35
+livecheck x-33
+dircheck
+delete x-32
+delete x-24
+create x-36
+livecheck x-20
+livecheck x-20
+checkdirmtime
+create x-37
+deadcheck x-12
+create x-38
+delete x-38
+create x-39
+deadcheck x-15
+livecheck x-34
+dircheck
+create x-40
+delete x-18
+livecheck x-33
+create x-41
+checkdirmtime
+delete x-33
+create x-42
+deadcheck x-30
+delete x-34
+dircheck
+delete x-41
+delete x-42
+delete x-37
+delete x-27
+delete x-40
+delete x-20
+delete x-31
+delete x-36
+delete x-39
+dircheck
+Passed all tests!
+-------------------------------------------------------------------------
+The following is the output of test-homework-3-d.c
+-------------------------------------------------------------------------
+Create then read: OK
+Unlink: OK
+Append: OK
+Readdir: OK
+Many sequential creates: OK
+Write 20000 bytes: OK
+Concurrent creates: OK
+Concurrent creates of the same file: OK
+Concurrent create/delete: OK
+Concurrent creates, same file, same server: OK
+test-homework-3-d: Passed all tests.
+-------------------------------------------------------------------------
+The following is the output of test-homework-3-e.c
+-------------------------------------------------------------------------
+Create/delete in separate directories: tests completed OK

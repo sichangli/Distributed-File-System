@@ -41,6 +41,8 @@ class yfs_client {
   int writeDir(inum, std::map<std::string, inum> &);
   // generate unique inum
   void generateInum(inum &);
+  // generate unique inum for dir
+  void generateDirInum(inum &);
  public:
 
   yfs_client(std::string, std::string);
@@ -62,6 +64,10 @@ class yfs_client {
   int read(inum, size_t, size_t, std::string &);
   // write file content
   int write(inum, const std::string &, size_t, size_t);
+  // remove file or dir
+  int remove(inum, const std::string &);
+  // create dir
+  int mkdir(inum, const std::string &, inum &);
 };
 
 #endif 

@@ -133,7 +133,7 @@ void
 yfs_client::generateInum(inum &inum)
 {
   int r;
-  srand(time(NULL));
+  srand(time(NULL) + getpid());
   inum = rand();
   inum = inum | 0x80000000;
 
@@ -167,7 +167,8 @@ yfs_client::create(inum pinum, const char *name, inum &ino)
     r = EXIST;
     goto release;
   }
-  // generate inum and update parent dir file
+
+  // generate the ino and update the parent dir
   generateInum(ino);
   dir[name_str] = ino;
   printf("%s -> %016llx\n", name_str.c_str(), dir[name_str]);
@@ -333,5 +334,113 @@ yfs_client::write(inum inum, const std::string &buf, size_t size, size_t off)
  release:
   // release the lock from lock server
   lc->release(inum);
+  return r;
+}
+
+int
+yfs_client::remove(inum pinum, const std::string &name)
+{
+  int r = OK;
+  std::map<std::string, inum> dir;
+
+  // acquire the lock from lock server
+  lc->acquire(pinum);
+
+  printf("remove in parent %016llx for file name %s\n", pinum, name.c_str());
+
+  r = readDir(pinum, dir);
+  if (r != OK)
+    goto release;
+
+  // if cannot find in parent dir
+  if (dir.find(name) == dir.end()) {
+    r = IOERR;
+    goto release;
+  }
+
+  // cannot remove dir
+  if (isdir(dir[name])) {
+    r = IOERR;
+    goto release;
+  }
+
+  // if found, remove from server
+  if (ec->remove(dir[name]) != extent_protocol::OK) {
+    r = IOERR;
+    goto release;
+  }
+
+  // update parent dir and write back
+  dir.erase(name);
+  r = writeDir(pinum, dir);
+  if (r != OK)
+    goto release;
+
+  printf("removed in parent %016llx for file name %s\n", pinum, name.c_str());
+
+ release:
+  // release the lock from lock server
+  lc->release(pinum);
+  return r;
+}
+
+void
+yfs_client::generateDirInum(inum &inum)
+{
+  int r;
+  srand(time(NULL) + getpid());
+  inum = rand();
+  inum &= 0x7FFFFFFF;
+
+  // check whether the inum already exists, if yes, keep generating
+  // until the server reports no
+  ec->check(inum, r);
+  while (r) {
+    inum = rand();
+    inum &= 0x7FFFFFFF;
+    ec->check(inum, r);
+  }
+}
+
+int
+yfs_client::mkdir(inum pinum, const std::string &name, inum &ino)
+{
+  int r = OK;
+  std::map<std::string, inum> dir;
+
+  // acquire the lock from lock server
+  lc->acquire(pinum);
+
+  printf("mkdir in parent %016llx for dir name %s\n", pinum, name.c_str());
+
+  r = readDir(pinum, dir);
+  if (r != OK)
+    goto release;
+
+  // if dir name already exists
+  if (dir.find(name) != dir.end()) {
+    r = EXIST;
+    goto release;
+  }
+
+  // genearate the ino and update parent dir file
+  generateDirInum(ino);
+  dir[name] = ino;
+
+  r = writeDir(pinum, dir);
+  if (r != OK)
+    goto release;
+
+  // put a empty dir
+  if (ec->put(ino, std::string()) != extent_protocol::OK) {
+    r = IOERR;
+    goto release;
+  }
+
+  printf("mkdir new inum %016llx\n", ino);
+
+ release:
+  // release the lock from lock server
+  lc->release(pinum);
   return r;
 }
