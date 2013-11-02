@@ -1,0 +1,64 @@
+1.1
+(a) and (d)
+(a) is the outcome of execution order T1, T2.
+(d) is the outcome of execution order T2, T1.
+
+1.2
+(1)
+ignored
+
+(2)
+---------------------------------------------------------------------
+P1: w(x)a         w(x)b
+---------------------------------------------------------------------
+P2:       r(x)a   w(x)c   r(x)b
+---------------------------------------------------------------------
+P3:       r(x)a   w(x)d   r(x)c
+---------------------------------------------------------------------
+P4:       r(x)a           r(x)b  r(x)c  r(x)d 
+---------------------------------------------------------------------
+P5:       r(x)a           r(x)d  r(x)b  r(x)c 
+---------------------------------------------------------------------
+
+2.1
+Assume lock 1 is FREE at the begining and its state has been written successfully
+to disk.
+The sequence of events is:
+(1) client 1 acquires lock 1
+(2) client 1 unlocks the mutext and calls log_operation
+(3) right before client 1 finishes log_operation, client 2 acquires lock 2 and also
+calls log_operation, it overwrites what is written by client 1. In the lock, the 
+state of lock 1 is still FREE, but actually client 1 is holding the lock.
+(4) server crashes and reboots and reads lock states from log.
+(5) client 3 acquires lock 1, server grants the lock.
+
+Now client 1 and 3 are both holding lock 1.
+
+2.2
+We need to hold the mutex when calling log_operation. We cannot unlock the mutex
+until the function returns. 
+
+int lock_server::acquire(int clt, lock protocol::lockid_t lid, int &r) {
+     pthread_mutex lock(&server_mutex);
+     lock *l = locks[lid]; //assuming lock exists
+     while (l->state==LOCKED)
+         pthread_cond_wait(&(l->cond), &server_mutex);
+     l->state = LOCKED;
+
+     log_operation(lid, LOCKED); //log operation flushes the entry to disk
+
+     pthread_mutex_unlock(&server_mutex);
+     return lock_protocol::OK;
+ }
+
+ int lock_server::release(int clt, lock_protocol::lockid_t lid, int &r) {
+     pthread_mutex_lock(&server_mutex);
+     lock *l = locks[lid]; //assuming lock exists
+     l->state = FREE;
+     pthread_cond_broadcast(&(l->cond));
+
+     log_operation(lid, FREE); //log operation flushes the entry to disk
+
+     pthread_mutex_unlock(&server_mutex);
+     return lock_protocol::OK;
+ }

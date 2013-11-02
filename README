@@ -1,0 +1,73 @@
+************************************************************************************
+lock_client_cache:
+The state of the lock on client side can be NONE, FREE, LOCKED, ACQUIRING, REVOKED
+and RELEASING.
+
+acquire:
+it will first check the state of the lock, if the state is NONE, it will set state 
+to ACQUIRING send acquire to server, if the the response is OK, the lock is granted. 
+If the response is RETRY, it will wait on retry_cond, a retry from server will wake 
+it up.
+If the lock is LOCKED or ACQUIRING or RELEASING or REVOKED, wait on cond until
+another thread releases lock and wakes it.
+
+release:
+If the lock state is LOCKED, it set the state to FREE and wakes up thread waiting on
+cond.
+If the state is REVOKED, add it to the revokes queue and wake up the releaser.
+Otherwise, invalid state and cannot happen.
+
+revoke:
+If the state is FREE, set the state to RELEASING and add it to the revokes queue and 
+wake up the releaser.
+If the lock is LOCKED, set the state to REVOKED.
+Otherwise, invalid state and cannot happen.
+
+retry:
+If the state is ACQUIRING, wake up the thread waiting on retry_cond.
+Otherwise, invalid state and cannot happen.
+
+releaser:
+wait on releaser_cond, every time it wake up, it will release all locks back to
+server in the revokes queue.
+
+************************************************************************************
+lock_server_cache:
+The state of the lock on server side can be FREE, LOCKED, REVOKED and RETRIED.
+
+acquire:
+If the state is FREE, grant the lock to the client.
+If the state is LOCKED, add the requesting client to waiting list, set the state to
+REVOKED and wake up the revoker, return RETRY to client.
+If the state is REVOKED, add the requesting client to waiting list and return RETRY.
+If the state is RETRIED, it means we are waiting for the retried acquire, if the 
+client is who we are waiting for, we grant the lock. Also, if there are other 
+clients are also waiting for the lock, we end revoke immediately after granting.
+If the client is not who we waiting for, we add it to the waiting list.
+
+release:
+If there is no other client is waiting on this lock, set the state to FREE.
+Otherwise, get the first client in the waiting list, add it to the retry queue, set
+the state to RETRIED and wake up the retryer.
+
+revoker:
+For every client in the revoke queue, send revoke RPC to it.
+
+retryer:
+For every client in the retry queue, send retry RPC to it.
+
+************************************************************************************
+Deal with out of order retry and revoke:
+The acquire PRC will take a sequence number xid as argument. The server will store 
+it for per lock per client. When the server sends the retry or revoke to the client.
+It will also send back xxid = xid + 1 to client. Then the client will also update
+xxid on the client side.
+When client receive the retry and revoke request, it will check whether the xxid
+passed by server equals to its own xxid. If not, it will wake on order_cond until
+xxid is updated. After xxid is updated after the client has received the response 
+to its acquire request, it will wake up the retry or revoke. In this way, we make
+sure the retry and revoke will always come after acquire.
+
+************************************************************************************
+test cases:
+Passed lock_tester and test-homework-3-{a,c} with RPC_LOSSY=5
