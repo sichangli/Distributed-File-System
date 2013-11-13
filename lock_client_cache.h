@@ -8,6 +8,7 @@
 #include "lock_protocol.h"
 #include "rpc.h"
 #include "lock_client.h"
+#include "extent_client.h"
 
 #line 15 "../lock_client_cache.h"
 
@@ -23,6 +24,15 @@ class lock_release_user {
 #line 26 "../lock_client_cache.h"
 
 #line 28 "../lock_client_cache.h"
+
+// subclass of lock_release_user to flush extent cache
+class cache_release_user : public lock_release_user {
+ private:
+  extent_client *ec;
+ public:
+  cache_release_user(extent_client *);
+  void dorelease(lock_protocol::lockid_t);
+};
 
 // SUGGESTED LOCK CACHING IMPLEMENTATION PLAN:
 //

@@ -6,6 +6,7 @@
 #include <string>
 #include "extent_protocol.h"
 #include "rpc.h"
+#include <set>
 
 class extent_client {
  private:
@@ -34,6 +35,8 @@ class extent_client {
   std::map<extent_protocol::extentid_t, extent_cache *> extent_cache_map;
   // attr cache map
   std::map<extent_protocol::extentid_t, attr_cache *> attr_cache_map;
+  // removed eid
+  std::set<extent_protocol::extentid_t> removed; 
   // mutex for cache
   pthread_mutex_t cache_mutex;
 
@@ -46,6 +49,7 @@ class extent_client {
 				  extent_protocol::attr &a);
   extent_protocol::status put(extent_protocol::extentid_t eid, std::string buf);
   extent_protocol::status remove(extent_protocol::extentid_t eid);
+  // flush dirty extent back to server
   void flush(extent_protocol::extentid_t);
 };
 

@@ -29,6 +29,12 @@ extent_client::get(extent_protocol::extentid_t eid, std::string &buf)
 {
   ScopedLock slock(&cache_mutex);
   extent_protocol::status ret = extent_protocol::OK;
+
+  // if it's already removed
+  if (removed.find(eid) != removed.end()) {
+    printf("  get %016llx: extent is already removed, return NOENT\n", eid);
+    return extent_protocol::NOENT;
+  }
   // find cache from cache map
   extent_cache *ec = extent_cache_map[eid];
   // if the extent is not cached
@@ -53,6 +59,12 @@ extent_client::getattr(extent_protocol::extentid_t eid,
   ScopedLock slock(&cache_mutex);
   extent_protocol::status ret = extent_protocol::OK;
 
+  // if it's already removed
+  if (removed.find(eid) != removed.end()) {
+    printf("  getattr %016llx: extent is already removed, return NOENT\n", eid);
+    return extent_protocol::NOENT;
+  }
+
   attr_cache *ac = attr_cache_map[eid];
   // if the attr is not cached
   if (!ac) {
@@ -74,9 +86,14 @@ extent_client::put(extent_protocol::extentid_t eid, std::string buf)
 {
   ScopedLock slock(&cache_mutex);
   extent_protocol::status ret = extent_protocol::OK;
-  int r;
   // find cache from cache map
   extent_cache *ec = extent_cache_map[eid];
+  // if it has been removed
+  if (removed.find(eid) != removed.end()) {
+    printf("  put %016llx: extent is already removed, remove it from removed list\n", eid);
+    removed.erase(eid);
+  }
+
   // if extent not cached
   if (!ec) {
     printf("  put %016llx: extent is not cached, create the cache\n", eid);
@@ -106,19 +123,63 @@ extent_client::remove(extent_protocol::extentid_t eid)
 {
   ScopedLock slock(&cache_mutex);
   extent_protocol::status ret = extent_protocol::OK;
-  int r;
+
+  // if it's already removed
+  if (removed.find(eid) != removed.end()) {
+    printf("  remove %016llx: extent is already removed, return NOENT\n", eid);
+    return extent_protocol::NOENT;
+  }
   // find cache from cache map
-  extent_cache *c = extent_cache_map[eid];
-  if (!c) {
-    printf("  remove %016llx: extent is not cached, should not happen\n", eid);
-    ret = extent_protocol::NOENT;
+  extent_cache *ec = extent_cache_map[eid];
+  if (!ec) {
+    printf("  remove %016llx: extent is not cached, add to remove set\n", eid);
+    removed.insert(eid);
   } else {
-    printf("  remove %016llx: extent is cached, remove the cache\n", eid);
-    delete c;
+    printf("  remove %016llx: extent is cached, remove the cache and add to remove set\n", eid);
+    delete ec;
+    removed.insert(eid);
     extent_cache_map.erase(eid);
+  }
+
+  attr_cache *ac = attr_cache_map[eid];
+  if (ac) {
+    printf("  remove %016llx: attr is cached, remove the attr cache\n", eid);
+    delete ac;
+    attr_cache_map.erase(eid);
   }
   // ret = cl->call(extent_protocol::remove, eid, r);
   return ret;
+}
+
+void
+extent_client::flush(extent_protocol::extentid_t eid)
+{
+  ScopedLock slock(&cache_mutex);
+  int r;
+
+  // if it's in the removed list
+  if (removed.find(eid) != removed.end()) {
+    printf("  flush %016llx: extent is already removed, call remove on server\n", eid);
+    cl->call(extent_protocol::remove, eid, r);
+    return;
+  }
+
+  // delete extent cache
+  extent_cache *ec = extent_cache_map[eid];
+  if (ec) {
+    if (ec->dirty) {
+      printf("  flush %016llx: extent is dirty, call put on server\n", eid);
+      cl->call(extent_protocol::put, eid, ec->extent, r);
+    }
+    delete ec;
+    extent_cache_map.erase(eid);
+  }
+  // delete attr cache
+  attr_cache *ac = attr_cache_map[eid];
+  if (ac) {
+    delete ac;
+    attr_cache_map.erase(eid);
+  }
 }
 
 

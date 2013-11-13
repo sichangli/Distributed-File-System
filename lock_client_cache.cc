@@ -290,6 +290,9 @@ lock_client_cache::dorelease(lock_protocol::lockid_t lid, std::string id,
   int r;
   int ret;
 
+  // call dorelease on lu
+  lu->dorelease(lid);
+
   printf("dorelease: send release %016llx %s(%llu)\n", lid, id.c_str(), xid);
   ret = cl->call(lock_protocol::release, lid, id, xid, r);
   assert (ret == lock_protocol::OK);
@@ -316,3 +319,17 @@ lock_reverse_server::retry(lock_protocol::lockid_t lid,
   r = 0;
   return ret;
 }
+
+cache_release_user::cache_release_user(extent_client *_ec)
+{
+  printf("  create cache_release_user\n");
+  ec = _ec;
+}
+
+void
+cache_release_user::dorelease(lock_protocol::lockid_t lid)
+{
+  printf("  flush %016llx\n", lid);
+  ec->flush(lid);
+}
+

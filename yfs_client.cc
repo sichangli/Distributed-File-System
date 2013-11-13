@@ -13,9 +13,11 @@
 
 
 yfs_client::yfs_client(std::string extent_dst, std::string lock_dst)
-{
+{ 
   ec = new extent_client(extent_dst);
-  lc = new lock_client_cache(lock_dst);
+  // init cache_release_user
+  lock_release_user *lu = new cache_release_user(ec);
+  lc = new lock_client_cache(lock_dst, lu);
 
 }
 
