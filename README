@@ -1,0 +1,59 @@
+*********************************************************************************
+extent_client:
+added new data structure:
+extent_cache: cache for extent
+attr_cache: cache for attribute
+extent_cache_map: map of id and extent_cache
+attr_cache_map: map of id and attr_cache
+removed: keep track of set of removed id
+cache_mutex: mutex to protect those data structures.
+
+
+get: first check whether the id is removed. If not, check whether the file is cached
+, if not, get the file from server. Otherwise, return the cache.
+
+
+getattr: first check whether the id is removed. If not, check whether the attr is 
+cached, if not, get the attr from server. Otherwise, return the cache.
+
+put: first check whether the id is in the removed set, if yes, remove it from the
+set since we put a new file. Then update the cache.
+
+remove: first check whether the id is removed. If not, add the id to the removed
+set. Then remove the cache.
+
+
+flush: first check whether the id is removed, if yes, call remove on server.
+Otherwise, check whether the cache is dirty, if yes, call put on server. Then
+remove the cache.
+
+cache_release_user: subclass of lock_release_user, will take extent_client as
+member.
+
+In yfs_client.cc, init cache_release_user and pass it into lock_client_cache.
+
+In lock_client_cache.cc, in dorelease, call lu->dorelease(lid) before release on
+server.
+
+*********************************************************************************
+test cases:
+passed test-homework-3-a, test-homework-3-d and test-homework-3-e
+
+With the extent cache, the number of RPC calls drop significantly as followings:
+
+RPC STATS: 1 2 6001 3 6002 18 6003 2 
+RPC STATS: 1 2 6001 3 6002 43 6003 2 
+RPC STATS: 1 2 6001 3 6002 68 6003 2 
+RPC STATS: 1 2 6001 3 6002 93 6003 2 
+RPC STATS: 1 2 6001 3 6002 118 6003 2 
+RPC STATS: 1 2 6001 3 6002 143 6003 2 
+RPC STATS: 1 2 6001 3 6002 168 6003 2 
+RPC STATS: 1 2 6001 3 6002 193 6003 2 
+RPC STATS: 1 2 6001 3 6002 218 6003 2 
+RPC STATS: 1 2 6001 3 6002 243 6003 2 
+RPC STATS: 1 2 6001 3 6002 268 6003 2 
+RPC STATS: 1 2 6001 3 6002 293 6003 2 
+RPC STATS: 1 2 6001 3 6002 318 6003 2 
+RPC STATS: 1 2 6001 3 6002 343 6003 2 
+RPC STATS: 1 2 6001 3 6002 368 6003 2 
+RPC STATS: 1 2 6001 3 6002 393 6003 2 

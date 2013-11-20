@@ -147,7 +147,6 @@ extent_client::remove(extent_protocol::extentid_t eid)
     delete ac;
     attr_cache_map.erase(eid);
   }
-  // ret = cl->call(extent_protocol::remove, eid, r);
   return ret;
 }
 
