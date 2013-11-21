@@ -1,0 +1,43 @@
+1.
+(a)
+True
+
+(b)
+True
+
+(c)
+True
+
+
+For (d) and (e), ssume to reserve seats, clients need to first read then write.
+
+(d)
+False
+Since each client see other's operations in different orders, client 1
+can see the write of client 2 before its own read, but client can see the write
+of client2 after its own read, so it will overbook.
+For example:
+---------------------------------------------
+C1: r(x)0   w(x)1
+---------------------------------------------
+C2:   r(x)0  w(x)2
+---------------------------------------------
+C3:     r(x)2  r(x)1
+---------------------------------------------
+C4:     r(x)1  r(x)2
+---------------------------------------------
+It's causal consistent but will overbook.
+
+(e)
+False 
+Some global orderings can cause overbooking. 
+For example:
+---------------------------------------------
+C1: r(x)0   w(x)1
+---------------------------------------------
+C2:   r(x)0  w(x)2
+---------------------------------------------
+C3:     r(x)2
+---------------------------------------------
+The global ordering is  r(x)0 r(x)0 w(x)1 w(x)2 r(x)2 and it's sequential 
+consistent but will overbook.
