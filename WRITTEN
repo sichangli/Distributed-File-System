@@ -6,7 +6,10 @@ True
 True
 
 (c)
-True
+False
+Since each replica treats other's operations in different orders, the reads in 
+different replicas may read different values, hence causing different states in 
+different replicas.
 
 
 For (d) and (e), assume to reserve seats, clients need to first read then write.
