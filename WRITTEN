@@ -9,7 +9,7 @@ True
 True
 
 
-For (d) and (e), ssume to reserve seats, clients need to first read then write.
+For (d) and (e), assume to reserve seats, clients need to first read then write.
 
 (d)
 False
