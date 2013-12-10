@@ -105,16 +105,15 @@ proposer::run(int instance, std::vector<std::string> newnodes, std::string newv)
     pthread_mutex_unlock(&pxs_mutex);
     return false;
   }
-  // update stable, c_nodes and c_v for this run
-  stable = false;
-  c_nodes = newnodes;
-  c_v = newv;
 
   setn();
   accepts.clear();
   nodes.clear();
   v.clear();
-  nodes = c_nodes;
+  // update stable, c_nodes and c_v for this run
+  nodes = c_nodes = newnodes;
+  c_v = newv;
+  stable = false;
 
   if (prepare(instance, accepts, nodes, v)) {
 
@@ -158,15 +157,16 @@ proposer::prepare(unsigned instance, std::vector<std::string> &accepts,
          std::string &v)
 {
   printf("proposer::prepare: calling prepare for instance %u\n", instance);
+  // keep track of the highest n_a and its v_a, first set it to min
+  prop_t max_n_a;
+  max_n_a.n = 0;
+  max_n_a.m = "";
+
   // init preparearg
   paxos_protocol::preparearg arg;
   arg.instance = instance;
   arg.n = my_n;
   arg.v = "";
-  // keep track of the highest n_a and its v_a
-  prop_t max_n_a;
-  max_n_a.n = 0;
-  max_n_a.m = "";
 
   for (int i = 0; i < nodes.size(); i++) {
     handle hd(nodes[i]);
@@ -182,9 +182,15 @@ proposer::prepare(unsigned instance, std::vector<std::string> &accepts,
     res.oldinstance = 0;
     res.accept = 0;
 
-    pthread_mutex_unlock(&pxs_mutex);
+    if (pthread_mutex_unlock(&pxs_mutex) != 0) {
+      printf("proposer::prepare: cannot unlock pxs_mutex\n");
+      return false;
+    }
     paxos_protocol::status ret = cl->call(paxos_protocol::preparereq, me, arg, res, rpcc::to(1000));
-    pthread_mutex_lock(&pxs_mutex);
+    if (pthread_mutex_lock(&pxs_mutex) != 0) {
+      printf("proposer::prepare: cannot lock pxs_mutex\n");
+      return false;
+    }
 
     if (paxos_protocol::OK != ret) {
       printf("proposer::prepare: got ERR\n");
@@ -198,21 +204,22 @@ proposer::prepare(unsigned instance, std::vector<std::string> &accepts,
       accepts.push_back(nodes[i]);
       // keep track of the highest n_a and its v_a
       if (res.n_a > max_n_a) {
+        printf("proposer::prepare: update max_n_a\n");
         max_n_a = res.n_a;
         v = res.v_a;
       }
     }
     else {
-      // the node said the instance is old
-      if (1 == res.oldinstance) {
-        printf("proposer::prepare: %s replied oldinstance for preparereq RPC\n", nodes[i].c_str());
-        // update value
-        acc->commit(instance, res.v_a);
-        continue;
-      } else {
-        // res.accept == 0 && res.oldinstance == 0
+      printf("proposer::prepare: not accept\n");
+      // res.accept == 0 && res.oldinstance == 0
+      if (0 == res.oldinstance) {
         printf("proposer::prepare: %s rejected the preparereq RPC\n", nodes[i].c_str());
+        continue;
       }
+      // the node said the instance is old
+      printf("proposer::prepare: %s replied oldinstance for preparereq RPC\n", nodes[i].c_str());
+      // update value
+      acc->commit(instance, res.v_a);  
     }
   }
   return true;
@@ -241,24 +248,30 @@ proposer::accept(unsigned instance, std::vector<std::string> &accepts,
     // call accept RPC to each node
     printf("proposer::accept: calling acceptreq RPC to %s\n", nodes[i].c_str());
     int r = 0;
-    pthread_mutex_unlock(&pxs_mutex);
+    if (pthread_mutex_unlock(&pxs_mutex) != 0) {
+      printf("proposer::accept: cannot unlock pxs_mutex\n");
+      return;
+    }
     paxos_protocol::status ret = cl->call(paxos_protocol::acceptreq, me, arg, r, rpcc::to(1000));
-    pthread_mutex_lock(&pxs_mutex);
+    if (pthread_mutex_lock(&pxs_mutex) != 0) {
+      printf("proposer::accept: cannot lock pxs_mutex\n");
+      return;
+    }
 
     if (paxos_protocol::OK != ret) {
       printf("proposer::accept: got ERR\n");
       continue;
     }
     printf("proposer::accept: got OK\n");
-    // the node accepted the accept
-    if (1 == r) {
-      printf("proposer::accept: %s accpeted the acceptreq RPC\n", nodes[i].c_str());
-      // add it to the accepts list
-      accepts.push_back(nodes[i]);
-    } else {
-      // accept is rejected
+    // accept is rejected
+    if (0 == r) {
       printf("proposer::accept: %s rejected the acceptreq RPC\n", nodes[i].c_str());
+      continue;
     }
+    // the node accepted the accept
+    printf("proposer::accept: %s accpeted the acceptreq RPC\n", nodes[i].c_str());
+    // add it to the accepts list
+    accepts.push_back(nodes[i]);
   }
 }
 
@@ -283,22 +296,28 @@ proposer::decide(unsigned instance, std::vector<std::string> accepts,
     // call decide RPC to each node
     printf("proposer::decide: calling decidereq RPC to %s\n", accepts[i].c_str());
     int r = 0;
-    pthread_mutex_unlock(&pxs_mutex);
+    if (pthread_mutex_unlock(&pxs_mutex) != 0) {
+      printf("proposer::decide: cannot unlock pxs_mutex\n");
+      return;
+    }
     paxos_protocol::status ret = cl->call(paxos_protocol::decidereq, me, arg, r, rpcc::to(1000));
-    pthread_mutex_lock(&pxs_mutex);
+    if (pthread_mutex_lock(&pxs_mutex) != 0) {
+      printf("proposer::decide: cannot lock pxs_mutex\n");
+      return;
+    }
 
     if (paxos_protocol::OK != ret) {
       printf("proposer::decide: got ERR\n");
       continue;
     }
     printf("proposer::decide: got OK\n");
-    if (1 == r) {
-      // accepted
-      printf("proposer::decide: %s accpeted the decidereq RPC\n", accepts[i].c_str());
-    } else {
+    if (0 == r) {
       // rejected
       printf("proposer::decide: %s rejected the decidereq RPC\n", accepts[i].c_str());
+      continue;
     }
+    // accepted
+    printf("proposer::decide: %s accpeted the decidereq RPC\n", accepts[i].c_str());
   }
 }
 
@@ -335,7 +354,10 @@ acceptor::preparereq(std::string src, paxos_protocol::preparearg a,
   printf("acceptor::preparereq: received prepare from %s\n", src.c_str());
 
   // handle a preparereq message from proposer
-  pthread_mutex_lock(&pxs_mutex);
+  if (pthread_mutex_lock(&pxs_mutex) != 0) {
+      printf("acceptor::preparereq: cannot lock pxs_mutex\n");
+      return paxos_protocol::ERR;
+  }
   if (a.instance <= instance_h) {
     // the instance is old
     printf("acceptor::preparereq: instance %u is old\n", a.instance);
@@ -351,13 +373,19 @@ acceptor::preparereq(std::string src, paxos_protocol::preparearg a,
     r.n_a = n_a;
     r.v_a = v_a;
     n_h = a.n;
+    printf("acceptor::preparereq: n_h is updated, wrtite to the log\n");
+    printf("acceptor::preparereq: n_h.n -> %u, n_h.m -> %s\n", n_h.n, n_h.m.c_str());
+    l->loghigh(n_h);
   } else {
     // reject the prepare
     printf("acceptor::preparereq: reject the prepare\n");
     r.oldinstance = 0;
     r.accept = 0;
   }
-  pthread_mutex_unlock(&pxs_mutex);
+  if (pthread_mutex_unlock(&pxs_mutex) != 0) {
+      printf("acceptor::preparereq: cannot unlock pxs_mutex\n");
+      return paxos_protocol::ERR;
+  }
   return paxos_protocol::OK;
 }
 
@@ -367,19 +395,29 @@ acceptor::acceptreq(std::string src, paxos_protocol::acceptarg a, int &r)
   printf("acceptor::acceptreq: received accept from %s\n", src.c_str());
 
   // handle an acceptreq message from proposer
-  pthread_mutex_lock(&pxs_mutex);
+  if (pthread_mutex_lock(&pxs_mutex) != 0) {
+      printf("acceptor::acceptreq: cannot lock pxs_mutex\n");
+      return paxos_protocol::ERR;
+  }
   if (a.n >= n_h) {
     // accept the accept
     printf("acceptor::acceptreq: accept the accept\n");
     r = 1;
     n_a = a.n;
     v_a = a.v;
+    printf("acceptor::acceptreq: n_a and v_a are updated, wrtite to the log\n");
+    printf("acceptor::acceptreq: n_a.n -> %u, n_a.m -> %s\n", n_a.n, n_a.m.c_str());
+    printf("acceptor::acceptreq: v_a -> %s\n", v_a.c_str());
+    l->logprop(n_a, v_a);
   } else {
     // reject the prepare
     printf("acceptor::acceptreq: reject the accept\n");
     r = 0;
   }
-  pthread_mutex_unlock(&pxs_mutex);
+  if (pthread_mutex_unlock(&pxs_mutex) != 0) {
+      printf("acceptor::acceptreq: cannot unlock pxs_mutex\n");
+      return paxos_protocol::ERR;
+  }
   return paxos_protocol::OK;
 }
 
@@ -389,10 +427,18 @@ acceptor::decidereq(std::string src, paxos_protocol::decidearg a, int &r)
   printf("acceptor::decidereq: received decide from %s\n", src.c_str());
 
   // handle an decide message from proposer
-  pthread_mutex_lock(&pxs_mutex);
+  if (pthread_mutex_lock(&pxs_mutex) != 0) {
+      printf("acceptor::decidereq: cannot lock pxs_mutex\n");
+      return paxos_protocol::ERR;
+  }
+
+  r = a.instance > instance_h ? 1 : 0;
   commit_wo(a.instance, a.v);
-  r = 1;
-  pthread_mutex_unlock(&pxs_mutex);
+
+  if (pthread_mutex_unlock(&pxs_mutex) != 0) {
+      printf("acceptor::decidereq: cannot unlock pxs_mutex\n");
+      return paxos_protocol::ERR;
+  }
   return paxos_protocol::OK;
 }
 

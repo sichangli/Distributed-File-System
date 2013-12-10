@@ -1,0 +1,222 @@
+********************************************************************
+Implemented according to the pseudocode.
+
+Functions modified:
+
+proposer::run
+Added code to update c_nodes, c_v and stable.
+
+proposer::prepare
+proposer::accept
+proposer::decide
+acceptor::preparereq
+acceptor::acceptreq
+acceptor::decidereq
+
+rsm::commit_change
+rsm::joinreq
+
+********************************************************************
+Test cases:
+Passed rsm_tester.pl from 0 to 7. The following is the output:
+
+vagrant@precise64:/vagrant/homework$ ./rsm_tester.pl 0 1 2 3 4 5 6 7
+test0: start 3-process lock server
+Start lock_server on 11139
+   Done: 11139 is in >=1 views in paxos-11139.log
+Start lock_server on 11622
+   Done: 11139 is in >=2 views in paxos-11139.log
+   Done: 11622 is in >=1 views in paxos-11622.log
+Start lock_server on 13143
+   Done: 11139 is in >=3 views in paxos-11139.log
+   Waiting for 11622 to be present in >=2 views in paxos-11622.log (Last view: done 3 11139 11622 13143 )
+   Done: 11622 is in >=2 views in paxos-11622.log
+   Done: 13143 is in >=1 views in paxos-13143.log
+test1: start 3-process lock server, kill third server
+Start lock_server on 11139
+   Done: 11139 is in >=1 views in paxos-11139.log
+Start lock_server on 11622
+   Done: 11139 is in >=2 views in paxos-11139.log
+   Done: 11622 is in >=1 views in paxos-11622.log
+Start lock_server on 13143
+   Done: 11139 is in >=3 views in paxos-11139.log
+   Waiting for 11622 to be present in >=2 views in paxos-11622.log (Last view: done 3 11139 11622 13143 )
+   Done: 11622 is in >=2 views in paxos-11622.log
+   Done: 13143 is in >=1 views in paxos-13143.log
+Kill third server (PID: 3571) on port 13143
+   Done: 11139 is in >=4 views in paxos-11139.log
+   Done: 11622 is in >=3 views in paxos-11622.log
+test2: start 3-process lock server, kill first server
+Start lock_server on 11139
+   Done: 11139 is in >=1 views in paxos-11139.log
+Start lock_server on 11622
+   Done: 11139 is in >=2 views in paxos-11139.log
+   Done: 11622 is in >=1 views in paxos-11622.log
+Start lock_server on 13143
+   Done: 11139 is in >=3 views in paxos-11139.log
+   Waiting for 11622 to be present in >=2 views in paxos-11622.log (Last view: done 2 11139 11622 )
+   Done: 11622 is in >=2 views in paxos-11622.log
+   Done: 13143 is in >=1 views in paxos-13143.log
+Kill first (PID: 3644) on port 11139
+   Done: 11622 is in >=3 views in paxos-11622.log
+   Done: 13143 is in >=2 views in paxos-13143.log
+test3: start 3-process lock_server, kill a server, restart a server
+Start lock_server on 11139
+   Done: 11139 is in >=1 views in paxos-11139.log
+Start lock_server on 11622
+   Done: 11139 is in >=2 views in paxos-11139.log
+   Done: 11622 is in >=1 views in paxos-11622.log
+Start lock_server on 13143
+   Done: 11139 is in >=3 views in paxos-11139.log
+   Waiting for 11622 to be present in >=2 views in paxos-11622.log (Last view: done 3 11139 11622 13143 )
+   Done: 11622 is in >=2 views in paxos-11622.log
+   Done: 13143 is in >=1 views in paxos-13143.log
+Kill server (PID: 3869) on port 13143
+   Done: 11139 is in >=4 views in paxos-11139.log
+   Done: 11622 is in >=3 views in paxos-11622.log
+Restart killed server on port 13143
+   Done: 11139 is in >=5 views in paxos-11139.log
+   Done: 11622 is in >=4 views in paxos-11622.log
+   Done: 13143 is in >=2 views in paxos-13143.log
+test4: 3-process lock_server, kill third server, kill second server, restart third server, kill third server again, restart second server, re-restart third server, check logs
+Start lock_server on 11139
+   Done: 11139 is in >=1 views in paxos-11139.log
+Start lock_server on 11622
+   Done: 11139 is in >=2 views in paxos-11139.log
+grep: paxos-11622.log: No such file or directory
+   Waiting for 11622 to be present in >=1 views in paxos-11622.log (Last view: done 2 11139 11622 )
+   Done: 11622 is in >=1 views in paxos-11622.log
+Start lock_server on 13143
+   Done: 11139 is in >=3 views in paxos-11139.log
+   Waiting for 11622 to be present in >=2 views in paxos-11622.log (Last view: done 2 11139 11622 )
+   Done: 11622 is in >=2 views in paxos-11622.log
+   Done: 13143 is in >=1 views in paxos-13143.log
+Kill server (PID: 4075) on port 13143
+   Done: 11139 is in >=4 views in paxos-11139.log
+   Done: 11622 is in >=3 views in paxos-11622.log
+Kill server (PID: 4025) on port 11622
+Restarting server on port 13143
+Kill server (PID: 4148) on port 13143
+Restarting server on port 11622
+   Node 11139 is present in 4 views in paxos-11139.log
+   Node 11622 is present in 3 views in paxos-11622.log
+Restarting server on port 13143
+   Waiting for 11139 to be present in >=5 views in paxos-11139.log (Last view: done 4 11139 11622 )
+   Waiting for 11139 to be present in >=5 views in paxos-11139.log (Last view: done 4 11139 11622 )
+   Waiting for 11139 to be present in >=5 views in paxos-11139.log (Last view: done 4 11139 11622 )
+   Done: 11139 is in >=5 views in paxos-11139.log
+   Waiting for 11622 to be present in >=4 views in paxos-11622.log (Last view: done 4 11139 11622 )
+   Done: 11622 is in >=4 views in paxos-11622.log
+   Done: 13143 is in >=2 views in paxos-13143.log
+test5: 3-process lock_server, send signal 1 to first server, kill third server, restart third server, check logs
+Start lock_server on 11139
+   Done: 11139 is in >=1 views in paxos-11139.log
+Start lock_server on 11622
+   Done: 11139 is in >=2 views in paxos-11139.log
+grep: paxos-11622.log: No such file or directory
+   Waiting for 11622 to be present in >=1 views in paxos-11622.log (Last view: done 2 11139 11622 )
+   Done: 11622 is in >=1 views in paxos-11622.log
+Start lock_server on 13143
+   Done: 11139 is in >=3 views in paxos-11139.log
+   Waiting for 11622 to be present in >=2 views in paxos-11622.log (Last view: done 3 11139 11622 13143 )
+   Done: 11622 is in >=2 views in paxos-11622.log
+   Done: 13143 is in >=1 views in paxos-13143.log
+Sending paxos breakpoint 1 to first server on port 11139
+Kill third server (PID: 4381) on port 13143
+Restarting third server on port 13143
+   Waiting for 11622 to be present in >=3 views in paxos-11622.log (Last view: done 3 11139 11622 13143 )
+   Waiting for 11622 to be present in >=3 views in paxos-11622.log (Last view: done 3 11139 11622 13143 )
+   Waiting for 11622 to be present in >=3 views in paxos-11622.log (Last view: done 3 11139 11622 13143 )
+   Waiting for 11622 to be present in >=3 views in paxos-11622.log (Last view: done 3 11139 11622 13143 )
+   Done: 11622 is in >=3 views in paxos-11622.log
+   Done: 13143 is in >=2 views in paxos-13143.log
+test6: 4-process lock_server, send signal 2 to first server, kill fourth server, restart fourth server, check logs
+Start lock_server on 11139
+   Done: 11139 is in >=1 views in paxos-11139.log
+Start lock_server on 11622
+   Done: 11139 is in >=2 views in paxos-11139.log
+grep: paxos-11622.log: No such file or directory
+   Waiting for 11622 to be present in >=1 views in paxos-11622.log (Last view: done 2 11139 11622 )
+   Done: 11622 is in >=1 views in paxos-11622.log
+Start lock_server on 13143
+   Done: 11139 is in >=3 views in paxos-11139.log
+   Done: 11622 is in >=2 views in paxos-11622.log
+   Done: 13143 is in >=1 views in paxos-13143.log
+Start lock_server on 29997
+   Done: 11139 is in >=4 views in paxos-11139.log
+   Waiting for 11622 to be present in >=3 views in paxos-11622.log (Last view: done 3 11139 11622 13143 )
+   Done: 11622 is in >=3 views in paxos-11622.log
+   Done: 13143 is in >=2 views in paxos-13143.log
+   Done: 29997 is in >=1 views in paxos-29997.log
+Sending paxos breakpoint 2 to first server on port 11139
+Kill fourth server (PID: 4655) on port 29997
+Restarting fourth server on port 29997
+   Waiting for 11622 to be present in >=6 views in paxos-11622.log (Last view: done 6 11622 13143 )
+   Waiting for 11622 to be present in >=6 views in paxos-11622.log (Last view: done 6 11622 13143 )
+   Waiting for 11622 to be present in >=6 views in paxos-11622.log (Last view: done 6 11622 13143 )
+   Waiting for 11622 to be present in >=6 views in paxos-11622.log (Last view: done 6 11622 13143 )
+   Waiting for 11622 to be present in >=6 views in paxos-11622.log (Last view: done 6 11622 13143 )
+   Waiting for 11622 to be present in >=6 views in paxos-11622.log (Last view: done 6 11622 13143 )
+   Waiting for 11622 to be present in >=6 views in paxos-11622.log (Last view: done 6 11622 13143 )
+   Waiting for 11622 to be present in >=6 views in paxos-11622.log (Last view: done 6 11622 13143 )
+   Waiting for 11622 to be present in >=6 views in paxos-11622.log (Last view: done 6 11622 13143 )
+   Waiting for 11622 to be present in >=6 views in paxos-11622.log (Last view: done 6 11622 13143 )
+   Waiting for 11622 to be present in >=6 views in paxos-11622.log (Last view: done 6 11622 13143 )
+   Waiting for 11622 to be present in >=6 views in paxos-11622.log (Last view: done 6 11622 13143 )
+   Waiting for 11622 to be present in >=6 views in paxos-11622.log (Last view: done 6 11622 13143 )
+   Waiting for 11622 to be present in >=6 views in paxos-11622.log (Last view: done 6 11622 13143 )
+   Waiting for 11622 to be present in >=6 views in paxos-11622.log (Last view: done 6 11622 13143 )
+   Waiting for 11622 to be present in >=6 views in paxos-11622.log (Last view: done 6 11622 13143 )
+   Waiting for 11622 to be present in >=6 views in paxos-11622.log (Last view: done 6 11622 13143 )
+   Waiting for 11622 to be present in >=6 views in paxos-11622.log (Last view: done 6 11622 13143 )
+   Waiting for 11622 to be present in >=6 views in paxos-11622.log (Last view: done 6 11622 13143 )
+   Waiting for 11622 to be present in >=6 views in paxos-11622.log (Last view: done 6 11622 13143 )
+   Done: 11622 is in >=6 views in paxos-11622.log
+   Waiting for 13143 to be present in >=5 views in paxos-13143.log (Last view: done 6 11622 13143 )
+   Done: 13143 is in >=5 views in paxos-13143.log
+   Done: 11622 is in >=6 views in paxos-11622.log
+   Done: 13143 is in >=5 views in paxos-13143.log
+   Done: 29997 is in >=2 views in paxos-29997.log
+test7: 4-process lock_server, send signal 2 to first server, kill fourth server, kill other servers, restart other servers, restart fourth server, check logs
+Start lock_server on 11139
+   Done: 11139 is in >=1 views in paxos-11139.log
+Start lock_server on 11622
+   Done: 11139 is in >=2 views in paxos-11139.log
+grep: paxos-11622.log: No such file or directory
+grep: paxos-11622.log: No such file or directory
+   Waiting for 11622 to be present in >=1 views in paxos-11622.log (Last view: )
+   Done: 11622 is in >=1 views in paxos-11622.log
+Start lock_server on 13143
+   Done: 11139 is in >=3 views in paxos-11139.log
+   Waiting for 11622 to be present in >=2 views in paxos-11622.log (Last view: done 3 11139 11622 13143 )
+   Done: 11622 is in >=2 views in paxos-11622.log
+   Done: 13143 is in >=1 views in paxos-13143.log
+Start lock_server on 29997
+   Done: 11139 is in >=4 views in paxos-11139.log
+   Waiting for 11622 to be present in >=3 views in paxos-11622.log (Last view: done 3 11139 11622 13143 )
+   Done: 11622 is in >=3 views in paxos-11622.log
+   Done: 13143 is in >=2 views in paxos-13143.log
+   Done: 29997 is in >=1 views in paxos-29997.log
+Sending paxos breakpoint 2 to first server on port 11139
+Kill fourth server (PID: 5083) on port 29997
+Kill third server (PID: 5026) on port 13143
+Kill second server (PID: 4976) on port 11622
+Restarting second server on port 11622
+Restarting third server on port 13143
+Restarting fourth server on port 29997
+   Done: 11622 is in >=5 views in paxos-11622.log
+   Done: 13143 is in >=4 views in paxos-13143.log
+   Waiting for 29997 to be present in >=2 views in paxos-29997.log (Last view: done 5 11139 11622 13143 )
+   Waiting for 29997 to be present in >=2 views in paxos-29997.log (Last view: done 5 11139 11622 13143 )
+   Waiting for 29997 to be present in >=2 views in paxos-29997.log (Last view: done 5 11139 11622 13143 )
+   Waiting for 29997 to be present in >=2 views in paxos-29997.log (Last view: done 5 11139 11622 13143 )
+   Waiting for 29997 to be present in >=2 views in paxos-29997.log (Last view: done 5 11139 11622 13143 )
+   Waiting for 29997 to be present in >=2 views in paxos-29997.log (Last view: done 5 11139 11622 13143 )
+   Waiting for 29997 to be present in >=2 views in paxos-29997.log (Last view: done 5 11139 11622 13143 )
+   Waiting for 29997 to be present in >=2 views in paxos-29997.log (Last view: done 5 11139 11622 13143 )
+   Waiting for 29997 to be present in >=2 views in paxos-29997.log (Last view: done 5 11139 11622 13143 )
+   Waiting for 29997 to be present in >=2 views in paxos-29997.log (Last view: done 5 11139 11622 13143 )
+   Waiting for 29997 to be present in >=2 views in paxos-29997.log (Last view: done 5 11139 11622 13143 )
+   Waiting for 29997 to be present in >=2 views in paxos-29997.log (Last view: done 5 11139 11622 13143 )
+   Done: 29997 is in >=2 views in paxos-29997.log
+tests done OK

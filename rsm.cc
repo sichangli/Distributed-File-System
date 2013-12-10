@@ -226,15 +226,27 @@ void
 rsm::commit_change() 
 {
   printf("rsm::commit_change: calling commit_change\n");
-  pthread_mutex_lock(&rsm_mutex);
+  if (pthread_mutex_lock(&rsm_mutex) != 0) {
+    printf("rsm::commit_change: cannot lock rsm_mutex\n");
+    return;
+  }
   // Lab 7:
   // - If I am not part of the new view, start recovery
+
+  // reset primary ndoe if previous one failed
+  set_primary();
+
   std::string me = cfg->myaddr();
+  // if i am not in the current view
   if (!cfg->ismember(me)) {
-    printf("rsm::commit_change: not a member of the new view\n");
+    printf("rsm::commit_change: not in the current view, wake up recovery thread\n");
     pthread_cond_signal(&recovery_cond);
   }
-  pthread_mutex_unlock(&rsm_mutex);
+
+  if (pthread_mutex_unlock(&rsm_mutex) != 0) {
+    printf("rsm::commit_change: cannot unlock rsm_mutex\n");
+    return;
+  }
 }
 
 
@@ -310,13 +322,24 @@ rsm::joinreq(std::string m, viewstamp last, rsm_protocol::joinres &r)
     ret = rsm_protocol::BUSY;
   } else {
     // Lab 7: invoke config to create a new view that contains m
+    bool res;
     printf("joinreq: is not a member and not busy, call cfg->add(m)\n");
-    bool res = cfg->add(m);
-    if (res) {
-      printf("joinreq: join successfully\n");
-    } else {
+    if (pthread_mutex_unlock(&rsm_mutex) != 0) {
+      printf("joinreq: cannot unlock rsm_mutex\n");
+      return rsm_protocol::ERR;
+    }
+    res = cfg->add(m);
+    if (pthread_mutex_lock(&rsm_mutex) != 0) {
+      printf("joinreq: cannot lock rsm_mutex\n");
+      return rsm_protocol::ERR;
+    }
+    if (!res) {
       printf("joinreq: cannot join\n");
       ret = rsm_protocol::BUSY;
+    } else {
+      printf("joinreq: join successfully\n");
+      // fetch the log
+      r.log = cfg->dump();
     }
 
   }

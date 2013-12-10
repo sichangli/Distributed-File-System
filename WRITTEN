@@ -1,0 +1,66 @@
+1.1
+// assume the cache is (key, value) pairs. The key is a user, and the value is a 
+// list of users. And API get() and put() can retrieve and add to the cache.
+
+$cache；
+
+function put($follower, $followee) {
+	$cache[$follower].push_back($followee);
+}
+
+function get($user) {
+	if ($cache.find($user) != $cache.end())
+		return $cache[$user];
+	else
+		return NULL;
+}
+
+function add_link($follower, $followee, $cache){
+	//insert the link into the graph table in centralized database
+	database_query("INSERT into graph (from, to) VALUES ('$follower', '$followee')");
+	// add it to the cache
+	put($follower, $followee);
+}
+
+function obtain_followees($user, $cache) {
+	//obtain the user's followers from the centralized database
+
+	// check whether the result is already in cache
+	$result = get($user);
+
+	if ($result == NULL)
+		$result = database_query("SELECT * FROM graph WHERE from='$user'");
+
+	return $result; 
+ }
+
+1.2
+No, Ben is wrong.
+For example, both node 1 and node 2 run add_link() and obtain_followees() 
+concurrently.
+
+Node 1:    add_link(A, B)    obtain_followees(A);
+Node 2:    add_link(A, C)    obtain_followees(A);
+
+Both node 1 and node 2 will write to the cache. Since they will write 
+concurrently, the result written by node 1 may be overwritten by node 2.
+If this is the case, both node 1 and node 2 will only see (A, C) in the 
+cache.
+It is not equal to any outcome if node 1 and node 2 run serially. So it's 
+not serializable.
+
+
+2.
+In system using leader-election algorithm, there is no leader at the begining, 
+and each node needs to broardcast message to others to ask for their votes. A 
+node will win the election only if it got the votes from majority. 
+In distributed system, we need to synchronize the state in different nodes, so 
+we often specify a master node to do the synchronization job. But it's very easy 
+for node to fail and if the master node fails, the entire system will be out of 
+state. Using leader-election algorithm, we can not only do the synchronization 
+work but can also avoid the failure of one master node since every node has the 
+chance to become leader. If the current leader fails, we can detect it and let 
+the rest to vote for the new leader.
+For example, Paxos is the using leader-election algorithm. If a node wants to 
+add value to the current view, it first needs to let majority agree with the 
+propose. If it wins the election, then it can begin to perform the synchronization.
