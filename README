@@ -1,5 +1,12 @@
 Lab for Distributed Systems W4995-1 Fall 2013: https://www.cs.columbia.edu/~du/ds/
 
 
-Implemented a distributed file system based on YFS, an instructional distributed file system developed by MIT after
-a research distributed file system, called Frangipani
+Implemented a distributed file system based on YFS, an instructional distributed file system developed by MIT after a research distributed file system, called Frangipani
+
+Each lab is implemented in different branches and there are totally 6 branches:
+homework1
+hw2
+hw3
+hw4
+hw5
+hw6
